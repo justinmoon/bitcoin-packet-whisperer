@@ -1,10 +1,15 @@
-#!/usr/bin/env python3
-
+"""
+Adapted from:
+* https://github.com/petertodd/python-bitcoinlib/blob/master/examples/send-addrs-msg.py
+* https://github.com/jimmysong/pb-exercises/blob/master/session7/helper.py
+"""
 import socket, time, bitcoin, hashlib
 from bitcoin.messages import msg_version, msg_verack, msg_addr, msg_getdata
 from bitcoin.net import CAddress, CInv
 
+
 PORT = 8333
+NETWORK_MAGIC = b'\xf9\xbe\xb4\xd9'
 
 bitcoin.SelectParams('mainnet') 
 
@@ -22,7 +27,7 @@ def double_sha256(s):
 
 
 def read_varint(s):
-    '''read_varint reads a variable integer from a stream'''
+    # https://en.bitcoin.it/wiki/Protocol_documentation#Variable_length_integer
     i = s.read(1)[0]
     if i == 0xfd:
         # 0xfd means the next two bytes are the number
@@ -39,6 +44,7 @@ def read_varint(s):
 
 
 def version_pkt(client_ip, server_ip):
+    # https://en.bitcoin.it/wiki/Protocol_documentation#version
     msg = msg_version()
     msg.nVersion = 70002
     msg.addrTo.ip = server_ip
@@ -49,6 +55,7 @@ def version_pkt(client_ip, server_ip):
     return msg
 
 def addr_pkt( str_addrs ):
+    # https://en.bitcoin.it/wiki/Protocol_documentation#addr
     msg = msg_addr()
     addrs = []
     for i in str_addrs:
@@ -62,6 +69,7 @@ def addr_pkt( str_addrs ):
     return msg
 
 def getdata_pkt( inv ):
+    # https://en.bitcoin.it/wiki/Protocol_documentation#getdata
     msg = msg_getdata()
     for type_, hash_ in inv:
         cinv = CInv()
@@ -71,82 +79,93 @@ def getdata_pkt( inv ):
     return msg
 
 
-s = socket.socket()
-
-# The old server_ip value didn't work
-server_ip = "91.107.64.143"
-client_ip = "192.168.0.13"
-
-s.connect( (server_ip,PORT) )
-
-# Send Version packet
-s.send( version_pkt(client_ip, server_ip).to_bytes() )
-
-# Get Version reply
-print(s.recv(1924))
-
-# Send Verack
-s.send( msg_verack().to_bytes() )
-# Get Verack
-print(s.recv(1024))
-
-# Send Addrs
-s.send( addr_pkt(["252.11.1.2", "EEEE:7777:8888:AAAA::1"]).to_bytes() )
-
-b'inv\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-
 def read_inv(stream):
+    # https://en.bitcoin.it/wiki/Protocol_documentation#inv
     type_ = little_endian_to_int(stream.read(4))
     hash_ = stream.read(32)
     return (type_, hash_)
 
-NETWORK_MAGIC = b'\xf9\xbe\xb4\xd9'
 
-while True:
-    data = s.recv(1024)
-    import io
-    stream = io.BytesIO(data)
-    magic = stream.read(4)
-    if magic != NETWORK_MAGIC:
-        print(f"{magic} != {NETWORK_MAGIC}")
+def connect():
+    s = socket.socket()
+
+    # The old server_ip value didn't work
+    server_ip = "91.107.64.143"
+    # Copied from python-bitcoinlib example
+    client_ip = "192.168.0.13"
+
+    s.connect( (server_ip,PORT) )
+
+    # Send Version packet
+    s.send( version_pkt(client_ip, server_ip).to_bytes() )
+
+    # Get Version reply
+    # TODO: Should we do something with it?
+    # TODO: Print something useful
+    print(s.recv(1924))
+
+    # Send Verack
+    # https://en.bitcoin.it/wiki/Protocol_documentation#verack
+    s.send( msg_verack().to_bytes() )
+
+    # Get Verack
+    # TODO: Should we do something with it?
+    print(s.recv(1024))
+
+    # Send Addrs
+    # FIXME: what address is this?
+    s.send( addr_pkt(["252.11.1.2", "EEEE:7777:8888:AAAA::1"]).to_bytes() )
+    return s
+
+
+def main_loop(s):
+    while True:
+        data = s.recv(1024)
+        import io
+        stream = io.BytesIO(data)
+
+        # FIXME: write helper function
+        # https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
+        magic = stream.read(4)
+        if magic != NETWORK_MAGIC:
+            # FIXME broken
+            print(f"{magic} != {NETWORK_MAGIC}")
+            print()
+            continue
+            #raise RuntimeError('magic is not right')
+        command = stream.read(12)
+        payload_length = little_endian_to_int(stream.read(4))
+        checksum = stream.read(4)
+        payload = stream.read(payload_length)
+        calculated_checksum = double_sha256(payload)[:4]
+
+        # FIXME broken
+        # print(calculated_checksum, checksum)
+        # if calculated_checksum != checksum:
+        #     raise RuntimeError('checksum does not match')
+
+        # FIXME: write handle_inv()
+        if command.startswith(b'inv'):
+            inv_stream = io.BytesIO(payload)
+            count = read_varint(inv_stream)
+            inv_vec = []
+            for _ in range(count):
+                inv_vec.append(read_inv(inv_stream))
+            pkt = getdata_pkt(inv_vec)
+            print('sending inv packet')
+            s.send(pkt.to_bytes())
+
+            
+
+        print(command)
+        #print(payload)
         print()
-        continue
-        #raise RuntimeError('magic is not right')
-    command = stream.read(12)
-    payload_length = little_endian_to_int(stream.read(4))
-    checksum = stream.read(4)
-    payload = stream.read(payload_length)
-    calculated_checksum = double_sha256(payload)[:4]
-
-    # FIXME
-    # print(calculated_checksum, checksum)
-    # if calculated_checksum != checksum:
-    #     raise RuntimeError('checksum does not match')
-
-    if command.startswith(b'inv'):
-        inv_stream = io.BytesIO(payload)
-        count = read_varint(inv_stream)
-        inv_vec = []
-        for _ in range(count):
-            inv_vec.append(read_inv(inv_stream))
-        pkt = getdata_pkt(inv_vec)
-        print('sending inv packet')
-        s.send(pkt.to_bytes())
-
-        
-
-    print(command)
-    #print(payload)
-    print()
-
-time.sleep(1) 
-s.close()
-
-# debug log on the server should look like:
-# accepted connection 192.168.0.13:39979
-# send version message: version 70002, blocks=317947, us=****, them=0.0.0.0:0, peer=192.168.0.13:39979
-# receive version message: /pythonbitcoin0.0.1/: version 70002, blocks=-1, us=192.168.0.149:18333, them=192.168.0.13:18333, peer=192.168.0.13:39979
-# Added 2 addresses from 192.168.0.13: 3 tried, 1706 new
-# disconnecting node 192.168.0.13:39979
 
 
+def main():
+    s = connect()
+    main_loop(s)
+
+
+if __name__ == '__main__':
+    main()
