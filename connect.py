@@ -15,6 +15,7 @@ PORT = 8333
 NETWORK_MAGIC = b'\xf9\xbe\xb4\xd9'
 server_ip = "91.107.64.143"
 server_ip = "104.198.92.164"
+server_ip = "35.187.200.6"  # same as jimmy's
 #server_ip = "73.61.50.116"
 bitcoin.SelectParams('mainnet') 
 MY_VERSION = 70015  # past bip-31 for ping/pong
@@ -271,7 +272,6 @@ def send_getheaders(sock):
     msg.locator.vHave = vHave
     msg.hashstop = end_hash
 
-    print(msg.serialize())
     sock.send(msg.serialize())
 
 
@@ -325,6 +325,37 @@ def read_msg(stream):
     return command, payload
 
 
+def recv_msg(sock):
+    # https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
+
+    # FIXME: make this a class
+
+    magic = sock.recv(4)
+    if magic == b'':
+        raise ValueError()
+    if magic != NETWORK_MAGIC:
+        print(f"Magic not right: {magic} != {NETWORK_MAGIC}")
+        raise RuntimeError('magic is not right')
+
+    command = sock.recv(12)
+    payload_length = little_endian_to_int(sock.recv(4))
+    checksum = sock.recv(4)
+    payload = sock.recv(payload_length)
+    calculated_checksum = double_sha256(payload)[:4]
+
+    if calculated_checksum != checksum:
+        print(f"Checksums don't match: {calculated_checksum} != {checksum}")
+        raise RuntimeError('checksum does not match')
+    
+    # cleanup
+    command = command.replace(b'\x00', b'')
+    payload = io.BytesIO(payload)
+
+    return command, payload
+
+
+
+
 
 def read_inv_vec(inv_stream):
     count = read_varint(inv_stream)
@@ -336,12 +367,11 @@ def read_inv_vec(inv_stream):
     return vec
 
 
-
 def main_loop(sock):
     sent = False
     iterations = 0
     while True:
-        data = sock.recv(1024)  # FIXME 1024 is arbitrary, works
+        data = sock.recv(10000)  # FIXME 1024 is arbitrary, works
         stream = io.BytesIO(data)
 
         try:
@@ -379,8 +409,9 @@ def main_loop(sock):
 
         elif command.startswith(b'sendcmpct'):
             print('sendcmpct')
+            print(payload)
             msg = msg_sendcmpct().deserialize(io.BytesIO(payload))
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             # sock.send(msg.to_bytes())
 
         else:
@@ -393,10 +424,31 @@ def main_loop(sock):
         print()
 
 
+def logger(sock):
+    while True:
+        try:
+            command, payload = recv_msg(sock)
+        except RuntimeError as e:
+            continue
+
+        if command == b'inv':
+            inv_vec = read_inv_vec(payload)
+            print(f"{command} - {inv_vec}")
+
+        elif command == b'sendheaders':
+            msg = msg_headers()
+            sock.send(msg.to_bytes())
+
+        else:
+            print(f"{command} - {payload}")
+
+        print()
+
+
 def main():
     sock = connect()
     try:
-        main_loop(sock)
+        logger(sock)
     except (ValueError, KeyboardInterrupt):
         sock.close()
 
