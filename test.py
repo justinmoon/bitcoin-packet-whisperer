@@ -22,7 +22,9 @@ def test_parse_version():
 
     assert version_msg.timestamp == 1531774979
 
-    # TODO addr_from & addr_recv
+    # FIXME
+    assert version_msg.addr_recv is not None
+    assert version_msg.addr_from is not None
 
     assert version_msg.nonce == 2665238372255235644
 

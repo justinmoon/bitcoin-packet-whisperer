@@ -57,20 +57,27 @@ def recv_msg(sock):
 
 class Address:
 
-    def __init__(self, services, ip, port, time=None):
+    def __init__(self, services, ip, port, time):
         self.services = services
+        # FIXME: parse the IPs
         self.ip = ip
         self.port = port
         self.time = time
 
     @classmethod
     def parse(cls, s, version_msg=False):
-        # if version_msg ...
+        # Documentation says that the `time` field ins't present in version messages ...
+        if version_msg:
+            time = None
+        else:
+            time = little_endian_to_int(s.read(4))
         services = read_services(s)
         ip = s.read(16)
         port = little_endian_to_int(s.read(2))
-        return
+        return cls(services, ip, port, time)
 
+    def __repr__(self):
+        return f"<Address {self.ip}:{self.port}>"
 
 class NetworkEnvelope:
 
@@ -128,6 +135,7 @@ class Version:
         self.services = services
         self.timestamp = timestamp
         self.addr_recv = addr_recv
+        # Seems addr_from is ignored https://bitcoin.stackexchange.com/questions/73015/what-is-the-purpose-of-addr-from-and-addr-recv-in-version-message
         self.addr_from = addr_from
         self.nonce = nonce
         self.user_agent = user_agent
@@ -139,10 +147,10 @@ class Version:
         version = little_endian_to_int(s.read(4))
         services = read_services(s)
         timestamp = little_endian_to_int(s.read(8))
-        addr_recv = Address.parse(io.BytesIO(s.read(26)))
-        addr_from = Address.parse(io.BytesIO(s.read(26)))
+        addr_recv = Address.parse(io.BytesIO(s.read(26)), version_msg=True)
+        addr_from = Address.parse(io.BytesIO(s.read(26)), version_msg=True)
         nonce = little_endian_to_int(s.read(8))
-        user_agent = read_varstr(s)
+        user_agent = read_varstr(s)  # Should we convert stuff like to to strings?
         start_height = little_endian_to_int(s.read(4))
         relay = little_endian_to_int(s.read(1))
         return cls(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
