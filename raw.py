@@ -8,15 +8,20 @@ import time
 import io
 import struct
 import random
+import datetime
+import math
 
 from utils import (
     little_endian_to_int, 
     int_to_little_endian, 
     read_varint, 
+    encode_varint,
     read_varstr, 
+    encode_varstr,
     double_sha256,
     read_bool,
     read_services,
+    encode_services,
 )
 
 
@@ -26,8 +31,32 @@ server_ip = "35.187.200.6"  # same as jimmy's
 MY_VERSION = 70015  # past bip-31 for ping/pong
 NODE_NETWORK = (1 << 0)
 NODE_WITNESS = (1 << 3)
-MY_SUBVERSION = b"/justins-cool-software/"
+USER_AGENT = b"/some-cool-software/"
 MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version messages (BIP37)
+
+
+def construct_version_msg():
+    version = MY_VERSION
+    services = 1024 + 8 + 4 + 2 + 1
+    # TODO: is this right?
+    timestamp = math.floor(datetime.datetime.utcnow().timestamp())
+    # FIXME
+    addr_recv = Address()
+    addr_from = Address()
+    nonce = random.randint(0, 2**(8*8))  # random 8 byte unsigned int
+    user_agent = USER_AGENT
+    # FIXME
+    start_height = 1
+    relay = 1
+    msg = Version(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
+    return msg
+
+
+def handshake(sock):
+    version_msg = construct_version_msg()
+    sock.send(version_msg.serialize())
+    ver_ack = recv_msg(sock)
+
 
 
 def recv_msg(sock):
@@ -52,7 +81,7 @@ def recv_msg(sock):
     command = command.replace(b'\x00', b'')
     payload = io.BytesIO(payload)
 
-    return command, payload
+    return Message(command, payload)
 
 
 class Address:
@@ -76,10 +105,20 @@ class Address:
         port = little_endian_to_int(s.read(2))
         return cls(services, ip, port, time)
 
+    def serialize(self, version_msg=False):
+        msg = b""
+        # FIXME: What's the right condition here
+        if self.time:
+            msg += int_to_little_endian(self.time, 4)
+        msg += encode_services(self.services)
+        msg += self.ip
+        msg += int_to_little_endian(self.port, 2)
+        return msg
+
     def __repr__(self):
         return f"<Address {self.ip}:{self.port}>"
 
-class NetworkEnvelope:
+class Message:
 
     def __init__(self, command, payload):
         self.command = command
@@ -93,9 +132,10 @@ class NetworkEnvelope:
 
     @classmethod
     def parse(cls, s):
-        '''Takes a stream and creates a NetworkEnvelope'''
+        '''Takes a stream and creates a Message'''
         # FROM HERE https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
         # check the network magic NETWORK_MAGIC
+        # FIXME: this is unusable code (recv vs read ...)
         magic = s.read(4)
         if magic != NETWORK_MAGIC:
             raise RuntimeError('magic is not right')
@@ -156,7 +196,18 @@ class Version:
         return cls(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
 
     def serialize(self):
-        pass
+        msg = b""
+        msg += int_to_little_endian(self.version, 4)
+        msg += encode_services(self.services)
+        msg += int_to_little_endian(self.timestamp, 8)
+        msg += self.addr_recv.serialize()
+        msg += self.addr_from.serialize()
+        msg += int_to_little_endian(self.nonce, 8)
+        msg += encode_varstr(self.user_agent)
+        msg += int_to_little_endian(self.start_height, 4)
+        msg += int_to_little_endian(self.relay, 1)
+        return msg
+
 
 def loop(sock):
     while True:
@@ -168,11 +219,31 @@ def loop(sock):
         print(f"{command} - {payload}")
 
 
+def main_loop(sock):
+    while True:
+        try:
+            msg = recv_msg(sock)
+            handle_message(msg)
+        except RuntimeError as e:
+            continue
+
+        print(f"{command} - {payload}")
+
+
+def handle_message(msg):
+    handler_map = {
+        b'version': handle_version_msg,
+    }
+    handler = handler_map.get(msg.command)
+    if handler:
+        handler(msg.payload)
+
+
 def main():
     sock = connect()
     # send_getblocks(sock)
     try:
-        loop(sock)
+        main_loop(sock)
     except KeyboardInterrupt:
         sock.close()
 

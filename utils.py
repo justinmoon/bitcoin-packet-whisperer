@@ -30,10 +30,29 @@ def read_varint(s):
         return i
 
 
+def encode_varint(i):
+    '''encodes an integer as a varint'''
+    if i < 0xfd:
+        return bytes([i])
+    elif i < 0x10000:
+        return b'\xfd' + int_to_little_endian(i, 2)
+    elif i < 0x100000000:
+        return b'\xfe' + int_to_little_endian(i, 4)
+    elif i < 0x10000000000000000:
+        return b'\xff' + int_to_little_endian(i, 8)
+    else:
+        raise RuntimeError('integer too large: {}'.format(i))
+
+
 def read_varstr(s):
     length = read_varint(s)
     string = s.read(length)
     return string
+
+
+def encode_varstr(s):
+    length = len(s)
+    return encode_varint(length) + s
 
 
 def read_bool(s):
@@ -58,3 +77,14 @@ def read_services(s):
         'NODE_WITNESS': check_bit(services, 3),          # 8
         'NODE_NETWORK_LIMITED': check_bit(services, 10),  # 1024
     }
+
+
+def encode_services(s):
+    number = sum([
+        int(s['NODE_NETWORK']) * 1,
+        int(s['NODE_GETUTXO']) * 2,
+        int(s['NODE_BLOOM']) * 4,
+        int(s['NODE_WITNESS']) * 8,
+        int(s['NODE_NETWORK_LIMITED']) * 1024,
+    ])
+    return int_to_little_endian(number, 8)
