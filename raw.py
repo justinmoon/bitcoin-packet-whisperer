@@ -13,15 +13,10 @@ from utils import (
     little_endian_to_int, 
     int_to_little_endian, 
     read_varint, 
+    read_varstr, 
     double_sha256,
-    ser_compact_size,
-    deser_compact_size,
-    ser_string,
-    deser_string,
-    ser_uint256,
-    deser_uint256,
-    ser_uint256_vector,
-    deser_uint256_vector,
+    read_bool,
+    read_services,
 )
 
 
@@ -58,6 +53,23 @@ def recv_msg(sock):
     payload = io.BytesIO(payload)
 
     return command, payload
+
+
+class Address:
+
+    def __init__(self, services, ip, port, time=None):
+        self.services = services
+        self.ip = ip
+        self.port = port
+        self.time = time
+
+    @classmethod
+    def parse(cls, s, version_msg=False):
+        # if version_msg ...
+        services = read_services(s)
+        ip = s.read(16)
+        port = little_endian_to_int(s.read(2))
+        return
 
 
 class NetworkEnvelope:
@@ -107,6 +119,36 @@ class NetworkEnvelope:
         # payload
         result += self.payload
         return result
+
+
+class Version:
+
+    def __init__(self, version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay):
+        self.version = version
+        self.services = services
+        self.timestamp = timestamp
+        self.addr_recv = addr_recv
+        self.addr_from = addr_from
+        self.nonce = nonce
+        self.user_agent = user_agent
+        self.start_height = start_height
+        self.relay = relay
+
+    @classmethod
+    def parse(cls, s):
+        version = little_endian_to_int(s.read(4))
+        services = read_services(s)
+        timestamp = little_endian_to_int(s.read(8))
+        addr_recv = Address.parse(io.BytesIO(s.read(26)))
+        addr_from = Address.parse(io.BytesIO(s.read(26)))
+        nonce = little_endian_to_int(s.read(8))
+        user_agent = read_varstr(s)
+        start_height = little_endian_to_int(s.read(4))
+        relay = little_endian_to_int(s.read(1))
+        return cls(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
+
+    def serialize(self):
+        pass
 
 def loop(sock):
     while True:

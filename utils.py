@@ -1,4 +1,4 @@
-import hashlib
+import hashlib, struct, hashlib
 
 
 def little_endian_to_int(b):
@@ -28,3 +28,33 @@ def read_varint(s):
     else:
         # anything else is just the integer
         return i
+
+
+def read_varstr(s):
+    length = read_varint(s)
+    string = s.read(length)
+    return string
+
+
+def read_bool(s):
+    int_ = little_endian_to_int(s.read(1))
+    bool_ = bool(int_)
+    return bool_
+
+
+def check_bit(number, index):
+    """See if the bit at `index` in binary representation of `number` is on"""
+    mask = 1 << index
+    return bool(number & mask)
+
+
+# TODO: class?
+def read_services(s):
+    services = little_endian_to_int(s.read(8))
+    return {
+        'NODE_NETWORK': check_bit(services, 0),          # 1
+        'NODE_GETUTXO': check_bit(services, 1),          # 2
+        'NODE_BLOOM': check_bit(services, 2),            # 4
+        'NODE_WITNESS': check_bit(services, 3),          # 8
+        'NODE_NETWORK_LIMITED': check_bit(services, 10),  # 1024
+    }
