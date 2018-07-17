@@ -13,8 +13,25 @@ def test_parse_version():
     version_msg = raw.Version.parse(payload_bytestream)
 
     assert version_msg.version == 70015
-    assert version_msg.services['NODE_NETWORK'] == 1
-    assert version_msg.services['NODE_GETUTXO'] == 0
+
+    assert version_msg.services['NODE_NETWORK'] == True
+    assert version_msg.services['NODE_GETUTXO'] == False
+    assert version_msg.services['NODE_BLOOM'] == True
+    assert version_msg.services['NODE_WITNESS'] == True
+    assert version_msg.services['NODE_NETWORK_LIMITED'] == True
+
+    assert version_msg.timestamp == 1531774979
+
+    # TODO addr_from & addr_recv
+
+    assert version_msg.nonce == 2665238372255235644
+
+    assert version_msg.user_agent == b'/Satoshi:0.16.0/'
+
+    assert version_msg.start_height == 532195
+
+    assert version_msg.relay == 1
+
 
 
 def test_parse_verack():
