@@ -67,16 +67,19 @@ def check_bit(number, index):
     return bool(number & mask)
 
 
-# TODO: class?
+def services_dict_from_int(n):
+    return {
+        'NODE_NETWORK': check_bit(n, 0),          # 1
+        'NODE_GETUTXO': check_bit(n, 1),          # 2
+        'NODE_BLOOM': check_bit(n, 2),            # 4
+        'NODE_WITNESS': check_bit(n, 3),          # 8
+        'NODE_NETWORK_LIMITED': check_bit(n, 10),  # 1024
+    }
+
+
 def read_services(s):
     services = little_endian_to_int(s.read(8))
-    return {
-        'NODE_NETWORK': check_bit(services, 0),          # 1
-        'NODE_GETUTXO': check_bit(services, 1),          # 2
-        'NODE_BLOOM': check_bit(services, 2),            # 4
-        'NODE_WITNESS': check_bit(services, 3),          # 8
-        'NODE_NETWORK_LIMITED': check_bit(services, 10),  # 1024
-    }
+    return services_dict_from_int(services)
 
 
 def encode_services(s):
@@ -88,3 +91,13 @@ def encode_services(s):
         int(s['NODE_NETWORK_LIMITED']) * 1024,
     ])
     return int_to_little_endian(number, 8)
+
+
+def empty_services():
+    return {
+        'NODE_NETWORK': True,          # 1
+        'NODE_GETUTXO': True,          # 2
+        'NODE_BLOOM': True,            # 4
+        'NODE_WITNESS': False,          # 8
+        'NODE_NETWORK_LIMITED': True,  # 1024
+    }

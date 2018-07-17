@@ -22,6 +22,10 @@ from utils import (
     read_bool,
     read_services,
     encode_services,
+
+    # HACKS!!!
+    empty_services,
+    services_dict_from_int,
 )
 
 
@@ -37,26 +41,35 @@ MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version 
 
 def construct_version_msg():
     version = MY_VERSION
-    services = 1024 + 8 + 4 + 2 + 1
+    services = services_dict_from_int(1024 + 8 + 4 + 2 + 1)
     # TODO: is this right?
     timestamp = math.floor(datetime.datetime.utcnow().timestamp())
     # FIXME
-    addr_recv = Address()
-    addr_from = Address()
+    # socket.gethostbyname(socket.gethostname())
+    # values copied from jimmy ...
+    addr_recv = Address(services=empty_services(), ip=255798520898262227103660156112819191808, port=36128, time=None)
+    addr_from = Address(services=empty_services(), ip=12482845039380155626872326237301243904, port=36128, time=None)
     nonce = random.randint(0, 2**(8*8))  # random 8 byte unsigned int
     user_agent = USER_AGENT
     # FIXME
     start_height = 1
     relay = 1
-    msg = Version(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
+    v = Version(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
+    # FIXME: string padding is becoming a PITA
+    command = b'version\x00\x00\x00\x00\x00'
+    payload = v.serialize()
+    msg = Message(command, payload)
     return msg
 
 
-def handshake(sock):
+def connect():
+    sock = socket.socket()
+    sock.connect((server_ip, PORT))
+
     version_msg = construct_version_msg()
     sock.send(version_msg.serialize())
-    ver_ack = recv_msg(sock)
 
+    return sock
 
 
 def recv_msg(sock):
@@ -77,10 +90,6 @@ def recv_msg(sock):
         print(f"Checksums don't match: {calculated_checksum} != {checksum}")
         raise RuntimeError('checksum does not match')
     
-    # cleanup ... should do this elsewhere
-    command = command.replace(b'\x00', b'')
-    payload = io.BytesIO(payload)
-
     return Message(command, payload)
 
 
@@ -101,7 +110,7 @@ class Address:
         else:
             time = little_endian_to_int(s.read(4))
         services = read_services(s)
-        ip = s.read(16)
+        ip = little_endian_to_int(s.read(16))
         port = little_endian_to_int(s.read(2))
         return cls(services, ip, port, time)
 
@@ -111,7 +120,7 @@ class Address:
         if self.time:
             msg += int_to_little_endian(self.time, 4)
         msg += encode_services(self.services)
-        msg += self.ip
+        msg += int_to_little_endian(self.ip, 16)
         msg += int_to_little_endian(self.port, 2)
         return msg
 
@@ -167,6 +176,8 @@ class Message:
         result += self.payload
         return result
 
+    def __repr__(self):
+        return f"<Message {self.command} {self.payload}>"
 
 class Version:
 
@@ -209,39 +220,45 @@ class Version:
         return msg
 
 
-def loop(sock):
-    while True:
-        try:
-            command, payload = recv_msg(sock)
-        except RuntimeError as e:
-            continue
-
-        print(f"{command} - {payload}")
-
-
 def main_loop(sock):
     while True:
         try:
             msg = recv_msg(sock)
-            handle_message(msg)
+            handle_message(msg, sock)
         except RuntimeError as e:
             continue
 
-        print(f"{command} - {payload}")
+        print(repr(msg))
 
 
-def handle_message(msg):
+def handle_version_msg(payload, sock):
+    version_msg = Version.parse(payload)
+    print(version_msg)
+
+
+def handle_verack_msg(payload, sock):
+    print('Received Verack')
+    command = b'verack\x00\x00\x00\x00\x00\x00'
+    payload = b''
+    my_verack_msg = Message(command, payload)
+    sock.send(my_verack_msg.serialize())
+
+
+def handle_message(msg, sock):
     handler_map = {
         b'version': handle_version_msg,
+        b'verack': handle_verack_msg,
     }
-    handler = handler_map.get(msg.command)
+    command = msg.command.replace(b'\x00', b'')
+    handler = handler_map.get(command)
     if handler:
-        handler(msg.payload)
+        payload_stream = io.BytesIO(msg.payload)
+        handler(payload_stream, sock)
+    print()
 
 
 def main():
     sock = connect()
-    # send_getblocks(sock)
     try:
         main_loop(sock)
     except KeyboardInterrupt:
