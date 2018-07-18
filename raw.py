@@ -46,9 +46,8 @@ def construct_version_msg():
     timestamp = math.floor(datetime.datetime.utcnow().timestamp())
     # FIXME
     # socket.gethostbyname(socket.gethostname())
-    # values copied from jimmy ...
-    addr_recv = Address(services=empty_services(), ip=255798520898262227103660156112819191808, port=36128, time=None)
-    addr_from = Address(services=empty_services(), ip=12482845039380155626872326237301243904, port=36128, time=None)
+    addr_recv = Address(services=empty_services(), ip=0, port=0, time=None)
+    addr_from = Address(services=empty_services(), ip=0, port=0, time=None)
     nonce = random.randint(0, 2**(8*8))  # random 8 byte unsigned int
     user_agent = USER_AGENT
     # FIXME
