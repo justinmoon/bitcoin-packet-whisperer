@@ -57,11 +57,11 @@ def construct_version_msg():
 def connect():
     sock = socket.socket()
     sock.connect(PEER)
+    return sock
 
+def send_version_msg(sock):
     version_msg = construct_version_msg()
     sock.send(version_msg.serialize())
-
-    return sock
 
 
 def recv_msg(sock):
@@ -250,6 +250,7 @@ def handle_message(msg, sock):
 
 def main():
     sock = connect()
+    send_version_msg(sock)
     try:
         main_loop(sock)
     except KeyboardInterrupt:
