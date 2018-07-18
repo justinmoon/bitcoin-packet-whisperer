@@ -20,6 +20,8 @@ from models import (
     Address,
     Version,
     Verack,
+    InventoryVector,
+    GetData,
     Tx,
     TxIn,
     TxOut,
@@ -76,10 +78,16 @@ def handle_verack(payload, sock):
     sock.send(msg.serialize())
 
 
+def handle_inv(payload, sock):
+    inv_vec = InventoryVector.parse(payload)
+    print(f'Received {inv_vec}')
+
+
 def handle_msg(msg, sock):
     handler_map = {
         b'version': handle_version,
         b'verack': handle_verack,
+        b'inv': handle_inv,
     }
     command = msg.command.replace(b'\x00', b'')
     handler = handler_map.get(command)
@@ -87,7 +95,7 @@ def handle_msg(msg, sock):
         payload_stream = io.BytesIO(msg.payload)
         handler(payload_stream, sock)
     else:
-        print(f"Unhandled command={command} payload={msg.payload}")
+        print(f"Unhandled command={msg.command} payload={msg.payload}")
 
 
 def main_loop(sock):

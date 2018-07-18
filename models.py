@@ -28,6 +28,15 @@ MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version 
 
 PEER = ("35.187.200.6", 8333)
 
+inv_map = {
+    0: "ERROR",
+    1: "MSG_TX",
+    2: "MSG_BLOCK",
+    3: "MSG_FILTERED_BLOCK",
+    4: "MSG_CMPCT_BLOCK",
+}
+
+
 class Address:
 
     def __init__(self, services, ip, port, time):
@@ -151,6 +160,64 @@ class Verack:
 
     def serialize(self):
         return b""
+
+
+class InventoryItem:
+
+    def __init__(self, type_, hash_):
+        self.type = type_
+        self.hash = hash_
+
+    @classmethod
+    def parse(cls, s):
+        type_ = little_endian_to_int(s.read(4))
+        hash_ = s.read(32)
+        return cls(type_, hash_)
+
+    def serialize(self):
+        pass
+    
+
+class InventoryVector:
+    command = b"inv\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
+    def __init__(self, items=None):
+        if items is None:
+            self.items = []
+        else:
+            self.items = items
+
+    @classmethod
+    def parse(cls, s):
+        count = read_varint(s)
+        items = [InventoryItem.parse(s) for _ in range(count)]
+        return cls(items)
+
+    def serialize(self):
+        pass
+
+    def __repr__(self):
+        return f"<Inv {repr(self.items)}>"
+
+
+class GetData:
+    command = b"getdata\x00\x00\x00\x00\x00"
+
+    def __init__(self, items=None):
+        if items is None:
+            self.items = []
+        else:
+            self.items = items
+
+    @classmethod
+    def parse(cls, s):
+        pass
+
+    def serialize(self):
+        pass
+
+    def __repr__(self):
+        return f"<Getdata {repr(self.inv)}>"
 
 
 class Tx:
