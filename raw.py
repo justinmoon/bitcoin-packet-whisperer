@@ -64,27 +64,6 @@ def send_version_msg(sock):
     sock.send(version_msg.serialize())
 
 
-def recv_msg(sock):
-    magic = sock.recv(4)
-    if magic == b'':
-        raise ValueError()
-    if magic != NETWORK_MAGIC:
-        print(f"Magic not right: {magic} != {NETWORK_MAGIC}")
-        raise RuntimeError('magic is not right')
-
-    command = sock.recv(12)
-    payload_length = little_endian_to_int(sock.recv(4))
-    checksum = sock.recv(4)
-    payload = sock.recv(payload_length)
-    calculated_checksum = double_sha256(payload)[:4]
-
-    if calculated_checksum != checksum:
-        print(f"Checksums don't match: {calculated_checksum} != {checksum}")
-        raise RuntimeError('checksum does not match')
-    
-    return Message(command, payload)
-
-
 class Address:
 
     def __init__(self, services, ip, port, time):
