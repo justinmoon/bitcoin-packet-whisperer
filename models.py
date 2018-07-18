@@ -293,6 +293,69 @@ class BlockLocator:
         return msg
     
 
+class Headers:
+
+    command = b"headers"
+
+    def __init__(self, count, headers):
+        self.count = count
+        self.headers = headers
+
+    @classmethod
+    def parse(cls, s):
+        count = read_varint(s)
+        headers = []
+        for _ in range(count):
+            header = BlockHeader.parse(s)
+            headers.append(header)
+        return cls(count, headers)
+
+    def serialize(self):
+        pass
+
+    def __repr__(self):
+        return f"<Headers {self.headers}>"
+
+
+class BlockHeader:
+
+    def __init__(self, version, prev_block, merkle_root, timestamp, bits, nonce, txn_count):
+        self.version = version
+        self.prev_block = prev_block
+        self.merkle_root = merkle_root
+        self.timestamp = timestamp
+        self.bits = bits
+        self.nonce = nonce
+        self.txn_count = txn_count
+
+    @classmethod
+    def parse(cls, s):
+        version = little_endian_to_int(s.read(4))
+        prev_block = s.read(32)[::-1]  # little endian
+        merkle_root = s.read(32)[::-1]  # little endian
+        timestamp = little_endian_to_int(s.read(4))
+        bits = little_endian_to_int(s.read(4))
+        nonce = little_endian_to_int(s.read(4))
+        txn_count = read_varint(s)  # apparently this is always 0?
+        return cls(version, prev_block, merkle_root, timestamp, bits, nonce, txn_count)
+
+    def serialize(self):
+        pass
+
+    def hash(self):
+        '''Returns the double-sha256 interpreted little endian of the block'''
+        # serialize
+        s = self.serialize()
+        # double-sha256
+        sha = double_sha256(s)
+        # reverse
+        return sha[::-1]
+
+
+    def __repr__(self):
+        return f"<Header merkle_root={self.merkle_root}>"
+
+
 class Tx:
 
     def __init__(self, version, tx_ins, tx_outs, locktime, testnet=False):

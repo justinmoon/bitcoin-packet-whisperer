@@ -26,6 +26,7 @@ from models import (
     GetData,
     BlockLocator,
     GetHeaders,
+    Headers,
     Tx,
     TxIn,
     TxOut,
@@ -107,7 +108,8 @@ def handle_inv(payload, sock):
 
 
 def handle_headers(payload, sock):
-    print('received "headers" ', payload)
+    block_headers = Headers.parse(payload)
+    print('received "headers" ', block_headers)
 
 
 def handle_tx(payload, sock):
