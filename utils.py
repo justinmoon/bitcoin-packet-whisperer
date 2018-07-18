@@ -1,4 +1,4 @@
-import hashlib, struct, hashlib
+import hashlib, struct, hashlib, random
 
 
 def little_endian_to_int(b):
@@ -67,37 +67,16 @@ def check_bit(number, index):
     return bool(number & mask)
 
 
-def services_dict_from_int(n):
+def services_int_to_dict(n):
     return {
-        'NODE_NETWORK': check_bit(n, 0),          # 1
-        'NODE_GETUTXO': check_bit(n, 1),          # 2
-        'NODE_BLOOM': check_bit(n, 2),            # 4
-        'NODE_WITNESS': check_bit(n, 3),          # 8
+        'NODE_NETWORK': check_bit(n, 0),           # 1
+        'NODE_GETUTXO': check_bit(n, 1),           # 2
+        'NODE_BLOOM': check_bit(n, 2),             # 4
+        'NODE_WITNESS': check_bit(n, 3),           # 8
         'NODE_NETWORK_LIMITED': check_bit(n, 10),  # 1024
     }
 
-
-def read_services(s):
-    services = little_endian_to_int(s.read(8))
-    return services_dict_from_int(services)
-
-
-def encode_services(s):
-    number = sum([
-        int(s['NODE_NETWORK']) * 1,
-        int(s['NODE_GETUTXO']) * 2,
-        int(s['NODE_BLOOM']) * 4,
-        int(s['NODE_WITNESS']) * 8,
-        int(s['NODE_NETWORK_LIMITED']) * 1024,
-    ])
-    return int_to_little_endian(number, 8)
-
-
-def empty_services():
-    return {
-        'NODE_NETWORK': True,          # 1
-        'NODE_GETUTXO': True,          # 2
-        'NODE_BLOOM': True,            # 4
-        'NODE_WITNESS': False,          # 8
-        'NODE_NETWORK_LIMITED': True,  # 1024
-    }
+def make_nonce(bytes_of_entropy):
+    bits_of_entropy = 8 * bytes_of_entropy
+    ceiling = 1 << bits_of_entropy
+    return random.randint(0, ceiling)

@@ -20,12 +20,7 @@ from utils import (
     encode_varstr,
     double_sha256,
     read_bool,
-    read_services,
-    encode_services,
-
-    # HACKS!!!
-    empty_services,
-    services_dict_from_int,
+    make_nonce,
 )
 
 
@@ -41,14 +36,11 @@ MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version 
 
 def construct_version_msg():
     version = MY_VERSION
-    services = services_dict_from_int(1024 + 8 + 4 + 2 + 1)
-    # TODO: is this right?
+    services = 1024 + 8 + 4 + 2 + 1  # turn 'em all on
     timestamp = math.floor(datetime.datetime.utcnow().timestamp())
-    # FIXME
-    # socket.gethostbyname(socket.gethostname())
-    addr_recv = Address(services=empty_services(), ip=0, port=0, time=None)
-    addr_from = Address(services=empty_services(), ip=0, port=0, time=None)
-    nonce = random.randint(0, 2**(8*8))  # random 8 byte unsigned int
+    addr_recv = Address(services=services, ip=0, port=0, time=None)
+    addr_from = Address(services=services, ip=0, port=0, time=None)
+    nonce = make_nonce(8)
     user_agent = USER_AGENT
     # FIXME
     start_height = 1
@@ -96,7 +88,6 @@ class Address:
 
     def __init__(self, services, ip, port, time):
         self.services = services
-        # FIXME: parse the IPs
         self.ip = ip
         self.port = port
         self.time = time
@@ -108,7 +99,7 @@ class Address:
             time = None
         else:
             time = little_endian_to_int(s.read(4))
-        services = read_services(s)
+        services = little_endian_to_int(s.read(8))
         ip = little_endian_to_int(s.read(16))
         port = little_endian_to_int(s.read(2))
         return cls(services, ip, port, time)
@@ -118,7 +109,7 @@ class Address:
         # FIXME: What's the right condition here
         if self.time:
             msg += int_to_little_endian(self.time, 4)
-        msg += encode_services(self.services)
+        msg += int_to_little_endian(self.services, 8)
         msg += int_to_little_endian(self.ip, 16)
         msg += int_to_little_endian(self.port, 2)
         return msg
@@ -195,7 +186,7 @@ class Version:
     @classmethod
     def parse(cls, s):
         version = little_endian_to_int(s.read(4))
-        services = read_services(s)
+        services = little_endian_to_int(s.read(8))
         timestamp = little_endian_to_int(s.read(8))
         addr_recv = Address.parse(io.BytesIO(s.read(26)), version_msg=True)
         addr_from = Address.parse(io.BytesIO(s.read(26)), version_msg=True)
@@ -208,7 +199,7 @@ class Version:
     def serialize(self):
         msg = b""
         msg += int_to_little_endian(self.version, 4)
-        msg += encode_services(self.services)
+        msg += int_to_little_endian(self.services, 8)
         msg += int_to_little_endian(self.timestamp, 8)
         msg += self.addr_recv.serialize()
         msg += self.addr_from.serialize()
