@@ -81,7 +81,12 @@ def handle_verack(payload, sock):
 def handle_inv(payload, sock):
     inv_vec = InventoryVector.parse(payload)
     print(f'Received {inv_vec}')
-
+    # TODO: send getdata
+    getdata = GetData(items=inv_vec.items)
+    msg = Message(getdata.command, getdata.serialize())
+    sock.send(msg.serialize())
+    print("sent getdata")
+    
 
 def handle_msg(msg, sock):
     handler_map = {

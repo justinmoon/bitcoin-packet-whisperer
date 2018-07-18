@@ -175,8 +175,13 @@ class InventoryItem:
         return cls(type_, hash_)
 
     def serialize(self):
-        pass
+        msg = b""
+        msg += int_to_little_endian(self.type, 4)
+        msg += self.hash
+        return msg
     
+    def __repr__(self):
+        return f"<InvItem {inv_map[self.type]} {self.hash}>"
 
 class InventoryVector:
     command = b"inv\x00\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -197,7 +202,7 @@ class InventoryVector:
         pass
 
     def __repr__(self):
-        return f"<Inv {repr(self.items)}>"
+        return f"<InvVec {repr(self.items)}>"
 
 
 class GetData:
@@ -214,7 +219,11 @@ class GetData:
         pass
 
     def serialize(self):
-        pass
+        msg = encode_varint(len(self.items))
+        for item in self.items:
+            msg += item.serialize()
+        return msg
+
 
     def __repr__(self):
         return f"<Getdata {repr(self.inv)}>"
