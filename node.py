@@ -14,6 +14,7 @@ import math
 from utils import (
     make_nonce,
     services_int_to_dict,
+    encode_command,
 )
 
 from models import (
@@ -52,8 +53,8 @@ def construct_version_msg():
     start_height = 1
     relay = 1
     v = Version(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
-    # FIXME: string padding is becoming a PITA
-    command = b'version\x00\x00\x00\x00\x00'
+
+    command = encode_command(b'version')
     payload = v.serialize()
     msg = Message(command, payload)
     return msg
@@ -121,8 +122,7 @@ def handle_msg(msg, sock):
         b'tx': handle_tx,
         b'headers': handle_headers,
     }
-    command = msg.command.replace(b'\x00', b'')
-    handler = handler_map.get(command)
+    handler = handler_map.get(msg.command)
     if handler:
         payload_stream = io.BytesIO(msg.payload)
         handler(payload_stream, sock)

@@ -95,3 +95,7 @@ def encode_command(cmd):
     padding_needed = 12 - len(cmd)
     padding = b"\x00" * padding_needed
     return cmd + padding
+
+
+def parse_command(command):
+    return command.replace(b'\x00', b'')

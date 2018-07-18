@@ -18,6 +18,7 @@ from utils import (
     make_nonce,
     consume_stream,
     encode_command,
+    parse_command,
 )
 
 NETWORK_MAGIC = b'\xf9\xbe\xb4\xd9'
@@ -86,7 +87,7 @@ class Message:
         if magic != NETWORK_MAGIC:
             raise RuntimeError('magic is not right')
 
-        command = consume_stream(s, 12)
+        command = parse_command(consume_stream(s, 12))
         payload_length = little_endian_to_int(consume_stream(s, 4))
         checksum = consume_stream(s, 4)
         payload = consume_stream(s, payload_length)
@@ -110,7 +111,7 @@ class Message:
 
 class Version:
 
-    command = b'version\x00\x00\x00\x00\x00\x00'
+    command = b'version'
 
     def __init__(self, version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay):
         self.version = version
@@ -153,7 +154,7 @@ class Version:
 
 class Verack:
 
-    command = b'verack\x00\x00\x00\x00\x00\x00'
+    command = b'verack'
 
     @classmethod
     def parse(cls, s):
@@ -188,7 +189,7 @@ class InventoryItem:
 
 
 class InventoryVector:
-    command = b"inv\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    command = b"inv"
 
     def __init__(self, items=None):
         if items is None:
@@ -210,7 +211,7 @@ class InventoryVector:
 
 
 class GetData:
-    command = b"getdata\x00\x00\x00\x00\x00"
+    command = b"getdata"
 
     def __init__(self, items=None):
         if items is None:
