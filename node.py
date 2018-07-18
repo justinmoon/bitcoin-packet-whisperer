@@ -88,11 +88,17 @@ def handle_inv(payload, sock):
     print("sent getdata")
     
 
+def handle_tx(payload, sock):
+    tx = Tx.parse(payload)
+    print("Received Tx: ", tx)
+
+
 def handle_msg(msg, sock):
     handler_map = {
         b'version': handle_version,
         b'verack': handle_verack,
         b'inv': handle_inv,
+        b'tx': handle_tx,
     }
     command = msg.command.replace(b'\x00', b'')
     handler = handler_map.get(command)

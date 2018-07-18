@@ -167,6 +167,8 @@ class InventoryItem:
     def __init__(self, type_, hash_):
         self.type = type_
         self.hash = hash_
+        if type_ != 1:
+            print ("\n\n\nGOT SOMETHING SPECIAL!!!!!\n\n\n")
 
     @classmethod
     def parse(cls, s):
@@ -182,6 +184,7 @@ class InventoryItem:
     
     def __repr__(self):
         return f"<InvItem {inv_map[self.type]} {self.hash}>"
+
 
 class InventoryVector:
     command = b"inv\x00\x00\x00\x00\x00\x00\x00\x00\x00"
