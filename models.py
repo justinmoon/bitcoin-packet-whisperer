@@ -232,6 +232,65 @@ class GetData:
         return f"<Getdata {repr(self.inv)}>"
 
 
+class GetBlocks:
+
+    command = b"getblocks"
+
+    def __init__(self, locator, hashstop=0):
+        self.locator = locator
+        self.hashstop = hashstop
+
+    @classmethod
+    def parse(cls, s):
+        pass
+
+    def serialize(self):
+        msg = self.locator.serialize()
+        msg += int_to_little_endian(self.hashstop, 32)
+        return msg
+    
+
+class GetHeaders:
+
+    command = b"getheaders"
+
+    def __init__(self, locator, hashstop=0):
+        self.locator = locator
+        self.hashstop = hashstop
+
+    @classmethod
+    def parse(cls, s):
+        pass
+
+    def serialize(self):
+        msg = self.locator.serialize()
+        msg += int_to_little_endian(self.hashstop, 32)
+        return msg
+
+
+class BlockLocator:
+
+    def __init__(self, items=None, version=MY_VERSION):
+        # self.items is a list of block hashes ... not sure on data type
+        if items:
+            self.items = items
+        else:
+            self.items = []
+        # this probably shouldn't be so mutable
+        self.version = version
+
+    @classmethod
+    def parse(cls, s):
+        pass
+
+    def serialize(self):
+        msg = int_to_little_endian(self.version, 4)
+        msg += encode_varint(len(self.items))
+        for hash_ in self.items:
+            msg += hash_
+        return msg
+    
+
 class Tx:
 
     def __init__(self, version, tx_ins, tx_outs, locktime, testnet=False):

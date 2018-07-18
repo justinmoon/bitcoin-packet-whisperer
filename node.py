@@ -13,6 +13,7 @@ import math
 
 from utils import (
     make_nonce,
+    services_int_to_dict,
 )
 
 from models import (
@@ -22,6 +23,8 @@ from models import (
     Verack,
     InventoryVector,
     GetData,
+    BlockLocator,
+    GetHeaders,
     Tx,
     TxIn,
     TxOut,
@@ -66,8 +69,18 @@ def send_version_msg(sock):
     sock.send(version_msg.serialize())
 
 
+def send_getheaders(sock):
+    # one recent hash ... base 16 encoded into like in core's test framework
+    items = [int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)]
+    locator = BlockLocator()
+    getheaders = GetHeaders(locator)
+    msg = Message(getheaders.command, getheaders.serialize())
+    sock.send(msg.serialize())
+    print('sent getheaders')
+
 def handle_version(payload, sock):
     version_msg = Version.parse(payload)
+    print(services_int_to_dict(version_msg.services))
     print(version_msg)
 
 
@@ -78,6 +91,8 @@ def handle_verack(payload, sock):
     sock.send(msg.serialize())
 
 
+SENT = False
+
 def handle_inv(payload, sock):
     inv_vec = InventoryVector.parse(payload)
     print(f'Received {inv_vec}')
@@ -87,6 +102,11 @@ def handle_inv(payload, sock):
     sock.send(msg.serialize())
     print("sent getdata")
     
+    global SENT
+    if not SENT:
+        send_getheaders(sock)
+        SENT = True
+
 
 def handle_tx(payload, sock):
     tx = Tx.parse(payload)
