@@ -21,12 +21,11 @@ from utils import (
     double_sha256,
     read_bool,
     make_nonce,
+    consume_stream,
 )
 
 
-PORT = 8333
 NETWORK_MAGIC = b'\xf9\xbe\xb4\xd9'
-server_ip = "35.187.200.6"  # same as jimmy's
 MY_VERSION = 70015  # past bip-31 for ping/pong
 NODE_NETWORK = (1 << 0)
 NODE_WITNESS = (1 << 3)
@@ -111,38 +110,26 @@ class Message:
 
     @classmethod
     def parse(cls, s):
-        '''Takes a stream and creates a Message'''
-        # FROM HERE https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
-        # check the network magic NETWORK_MAGIC
-        # FIXME: this is unusable code (recv vs recv ...)
-        magic = s.recv(4)
+        magic = consume_stream(s, 4)
         if magic != NETWORK_MAGIC:
             raise RuntimeError('magic is not right')
-        # command 12 bytes
-        command = s.recv(12)
-        # payload length 4 bytes, little endian
-        payload_length = little_endian_to_int(s.recv(4))
-        # checksum 4 bytes, first four of double-sha256 of payload
-        checksum = s.recv(4)
-        # payload is of length payload_length
-        payload = s.recv(payload_length)
-        # verify checksum
+
+        command = consume_stream(s, 12)
+        payload_length = little_endian_to_int(consume_stream(s, 4))
+        checksum = consume_stream(s, 4)
+        payload = consume_stream(s, payload_length)
         calculated_checksum = double_sha256(payload)[:4]
+
         if calculated_checksum != checksum:
             raise RuntimeError('checksum does not match')
+
         return cls(command, payload)
 
     def serialize(self):
-        '''Returns the byte serialization of the entire network message'''
-        # add the network magic NETWORK_MAGIC
         result = NETWORK_MAGIC
-        # command 12 bytes
         result += self.command
-        # payload length 4 bytes, little endian
         result += int_to_little_endian(len(self.payload), 4)
-        # checksum 4 bytes, first four of double-sha256 of payload
         result += double_sha256(self.payload)[:4]
-        # payload
         result += self.payload
         return result
 
@@ -150,6 +137,8 @@ class Message:
         return f"<Message {self.command} {self.payload}>"
 
 class Version:
+
+    command = b'version\x00\x00\x00\x00\x00\x00'
 
     def __init__(self, version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay):
         self.version = version
@@ -190,6 +179,18 @@ class Version:
         return msg
 
 
+class Verack:
+
+    command = b'verack\x00\x00\x00\x00\x00\x00'
+
+    @classmethod
+    def parse(cls, s):
+        return cls()
+
+    def serialize(self):
+        return b""
+
+
 def main_loop(sock):
     while True:
         try:
@@ -208,10 +209,9 @@ def handle_version_msg(payload, sock):
 
 def handle_verack_msg(payload, sock):
     print('Received Verack')
-    command = b'verack\x00\x00\x00\x00\x00\x00'
-    payload = b''
-    my_verack_msg = Message(command, payload)
-    sock.send(my_verack_msg.serialize())
+    verack = Verack()
+    msg = Message(verack.command, verack.serialize())
+    sock.send(msg.serialize())
 
 
 def handle_message(msg, sock):
@@ -224,7 +224,7 @@ def handle_message(msg, sock):
     if handler:
         payload_stream = io.BytesIO(msg.payload)
         handler(payload_stream, sock)
-    print()
+    print(f"Unhandled {command}")
 
 
 def main():

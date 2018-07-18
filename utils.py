@@ -80,3 +80,12 @@ def make_nonce(bytes_of_entropy):
     bits_of_entropy = 8 * bytes_of_entropy
     ceiling = 1 << bits_of_entropy
     return random.randint(0, ceiling)
+
+
+def consume_stream(s, n):
+    if hasattr(s, 'read'):
+        return s.read(n)
+    elif hasattr(s, 'recv'):
+        return s.recv(n)
+    else:
+        raise RuntimeError("Can't consume stream")
