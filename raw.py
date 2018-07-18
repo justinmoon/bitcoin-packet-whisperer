@@ -45,7 +45,7 @@ def construct_version_msg():
     # FIXME
     start_height = 1
     relay = 1
-    v = Version(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
+    v = VersionCommand(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
     # FIXME: string padding is becoming a PITA
     command = b'version\x00\x00\x00\x00\x00'
     payload = v.serialize()
@@ -103,10 +103,7 @@ class Message:
         self.payload = payload
 
     def __repr__(self):
-        return '{}: {}'.format(
-            self.command.decode('ascii'),
-            self.payload.hex(),
-        )
+        return f'<Message {self.command} {self.payload} >'
 
     @classmethod
     def parse(cls, s):
@@ -136,7 +133,7 @@ class Message:
     def __repr__(self):
         return f"<Message {self.command} {self.payload}>"
 
-class Version:
+class VersionCommand:
 
     command = b'version\x00\x00\x00\x00\x00\x00'
 
@@ -179,7 +176,7 @@ class Version:
         return msg
 
 
-class Verack:
+class VerackCommand:
 
     command = b'verack\x00\x00\x00\x00\x00\x00'
 
@@ -195,7 +192,7 @@ def main_loop(sock):
     while True:
         try:
             msg = Message.parse(sock)
-            handle_message(msg, sock)
+            handle_msg(msg, sock)
         except RuntimeError as e:
             continue
 
@@ -203,18 +200,18 @@ def main_loop(sock):
 
 
 def handle_version_msg(payload, sock):
-    version_msg = Version.parse(payload)
+    version_msg = VersionCommand.parse(payload)
     print(version_msg)
 
 
 def handle_verack_msg(payload, sock):
-    print('Received Verack')
-    verack = Verack()
+    print('Received VerackCommand')
+    verack = VerackCommand()
     msg = Message(verack.command, verack.serialize())
     sock.send(msg.serialize())
 
 
-def handle_message(msg, sock):
+def handle_msg(msg, sock):
     handler_map = {
         b'version': handle_version_msg,
         b'verack': handle_verack_msg,
@@ -224,7 +221,6 @@ def handle_message(msg, sock):
     if handler:
         payload_stream = io.BytesIO(msg.payload)
         handler(payload_stream, sock)
-    print(f"Unhandled {command}")
 
 
 def main():
