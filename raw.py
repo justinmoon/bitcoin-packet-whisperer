@@ -12,16 +12,17 @@ import datetime
 import math
 
 from utils import (
-    little_endian_to_int, 
-    int_to_little_endian, 
-    read_varint, 
-    encode_varint,
-    read_varstr, 
-    encode_varstr,
-    double_sha256,
-    read_bool,
     make_nonce,
-    consume_stream,
+)
+
+from models import (
+    Message,
+    Address,
+    Version,
+    Verack,
+    Tx,
+    TxIn,
+    TxOut,
 )
 
 
@@ -45,7 +46,7 @@ def construct_version_msg():
     # FIXME
     start_height = 1
     relay = 1
-    v = VersionCommand(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
+    v = Version(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
     # FIXME: string padding is becoming a PITA
     command = b'version\x00\x00\x00\x00\x00'
     payload = v.serialize()
@@ -63,129 +64,30 @@ def send_version_msg(sock):
     sock.send(version_msg.serialize())
 
 
-class Address:
-
-    def __init__(self, services, ip, port, time):
-        self.services = services
-        self.ip = ip
-        self.port = port
-        self.time = time
-
-    @classmethod
-    def parse(cls, s, version_msg=False):
-        # Documentation says that the `time` field ins't present in version messages ...
-        if version_msg:
-            time = None
-        else:
-            time = little_endian_to_int(s.read(4))
-        services = little_endian_to_int(s.read(8))
-        ip = little_endian_to_int(s.read(16))
-        port = little_endian_to_int(s.read(2))
-        return cls(services, ip, port, time)
-
-    def serialize(self, version_msg=False):
-        msg = b""
-        # FIXME: What's the right condition here
-        if self.time:
-            msg += int_to_little_endian(self.time, 4)
-        msg += int_to_little_endian(self.services, 8)
-        msg += int_to_little_endian(self.ip, 16)
-        msg += int_to_little_endian(self.port, 2)
-        return msg
-
-    def __repr__(self):
-        return f"<Address {self.ip}:{self.port}>"
-
-class Message:
-
-    def __init__(self, command, payload):
-        self.command = command
-        self.payload = payload
-
-    def __repr__(self):
-        return f'<Message {self.command} {self.payload} >'
-
-    @classmethod
-    def parse(cls, s):
-        magic = consume_stream(s, 4)
-        if magic != NETWORK_MAGIC:
-            raise RuntimeError('magic is not right')
-
-        command = consume_stream(s, 12)
-        payload_length = little_endian_to_int(consume_stream(s, 4))
-        checksum = consume_stream(s, 4)
-        payload = consume_stream(s, payload_length)
-        calculated_checksum = double_sha256(payload)[:4]
-
-        if calculated_checksum != checksum:
-            raise RuntimeError('checksum does not match')
-
-        return cls(command, payload)
-
-    def serialize(self):
-        result = NETWORK_MAGIC
-        result += self.command
-        result += int_to_little_endian(len(self.payload), 4)
-        result += double_sha256(self.payload)[:4]
-        result += self.payload
-        return result
-
-    def __repr__(self):
-        return f"<Message {self.command} {self.payload}>"
-
-class VersionCommand:
-
-    command = b'version\x00\x00\x00\x00\x00\x00'
-
-    def __init__(self, version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay):
-        self.version = version
-        self.services = services
-        self.timestamp = timestamp
-        self.addr_recv = addr_recv
-        # Seems addr_from is ignored https://bitcoin.stackexchange.com/questions/73015/what-is-the-purpose-of-addr-from-and-addr-recv-in-version-message
-        self.addr_from = addr_from
-        self.nonce = nonce
-        self.user_agent = user_agent
-        self.start_height = start_height
-        self.relay = relay
-
-    @classmethod
-    def parse(cls, s):
-        version = little_endian_to_int(s.read(4))
-        services = little_endian_to_int(s.read(8))
-        timestamp = little_endian_to_int(s.read(8))
-        addr_recv = Address.parse(io.BytesIO(s.read(26)), version_msg=True)
-        addr_from = Address.parse(io.BytesIO(s.read(26)), version_msg=True)
-        nonce = little_endian_to_int(s.read(8))
-        user_agent = read_varstr(s)  # Should we convert stuff like to to strings?
-        start_height = little_endian_to_int(s.read(4))
-        relay = little_endian_to_int(s.read(1))
-        return cls(version, services, timestamp, addr_recv, addr_from, nonce, user_agent, start_height, relay)
-
-    def serialize(self):
-        msg = b""
-        msg += int_to_little_endian(self.version, 4)
-        msg += int_to_little_endian(self.services, 8)
-        msg += int_to_little_endian(self.timestamp, 8)
-        msg += self.addr_recv.serialize()
-        msg += self.addr_from.serialize()
-        msg += int_to_little_endian(self.nonce, 8)
-        msg += encode_varstr(self.user_agent)
-        msg += int_to_little_endian(self.start_height, 4)
-        msg += int_to_little_endian(self.relay, 1)
-        return msg
+def handle_version(payload, sock):
+    version_msg = Version.parse(payload)
+    print(version_msg)
 
 
-class VerackCommand:
+def handle_verack(payload, sock):
+    print('Received Verack')
+    verack = Verack()
+    msg = Message(verack.command, verack.serialize())
+    sock.send(msg.serialize())
 
-    command = b'verack\x00\x00\x00\x00\x00\x00'
 
-    @classmethod
-    def parse(cls, s):
-        return cls()
-
-    def serialize(self):
-        return b""
+def handle_msg(msg, sock):
+    handler_map = {
+        b'version': handle_version,
+        b'verack': handle_verack,
+    }
+    command = msg.command.replace(b'\x00', b'')
+    handler = handler_map.get(command)
+    if handler:
+        payload_stream = io.BytesIO(msg.payload)
+        handler(payload_stream, sock)
+    else:
+        print(f"Unhandled command={command} payload-{msg.payload}")
 
 
 def main_loop(sock):
@@ -195,32 +97,7 @@ def main_loop(sock):
             handle_msg(msg, sock)
         except RuntimeError as e:
             continue
-
-        print(repr(msg))
-
-
-def handle_version_msg(payload, sock):
-    version_msg = VersionCommand.parse(payload)
-    print(version_msg)
-
-
-def handle_verack_msg(payload, sock):
-    print('Received VerackCommand')
-    verack = VerackCommand()
-    msg = Message(verack.command, verack.serialize())
-    sock.send(msg.serialize())
-
-
-def handle_msg(msg, sock):
-    handler_map = {
-        b'version': handle_version_msg,
-        b'verack': handle_verack_msg,
-    }
-    command = msg.command.replace(b'\x00', b'')
-    handler = handler_map.get(command)
-    if handler:
-        payload_stream = io.BytesIO(msg.payload)
-        handler(payload_stream, sock)
+        print()
 
 
 def main():
