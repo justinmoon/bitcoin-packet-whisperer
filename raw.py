@@ -33,6 +33,7 @@ NODE_WITNESS = (1 << 3)
 USER_AGENT = b"/some-cool-software/"
 MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version messages (BIP37)
 
+PEER = ("35.187.200.6", 8333)
 
 def construct_version_msg():
     version = MY_VERSION
@@ -55,7 +56,7 @@ def construct_version_msg():
 
 def connect():
     sock = socket.socket()
-    sock.connect((server_ip, PORT))
+    sock.connect(PEER)
 
     version_msg = construct_version_msg()
     sock.send(version_msg.serialize())
@@ -134,18 +135,18 @@ class Message:
         '''Takes a stream and creates a Message'''
         # FROM HERE https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
         # check the network magic NETWORK_MAGIC
-        # FIXME: this is unusable code (recv vs read ...)
-        magic = s.read(4)
+        # FIXME: this is unusable code (recv vs recv ...)
+        magic = s.recv(4)
         if magic != NETWORK_MAGIC:
             raise RuntimeError('magic is not right')
         # command 12 bytes
-        command = s.read(12)
+        command = s.recv(12)
         # payload length 4 bytes, little endian
-        payload_length = little_endian_to_int(s.read(4))
+        payload_length = little_endian_to_int(s.recv(4))
         # checksum 4 bytes, first four of double-sha256 of payload
-        checksum = s.read(4)
+        checksum = s.recv(4)
         # payload is of length payload_length
-        payload = s.read(payload_length)
+        payload = s.recv(payload_length)
         # verify checksum
         calculated_checksum = double_sha256(payload)[:4]
         if calculated_checksum != checksum:
@@ -213,7 +214,7 @@ class Version:
 def main_loop(sock):
     while True:
         try:
-            msg = recv_msg(sock)
+            msg = Message.parse(sock)
             handle_message(msg, sock)
         except RuntimeError as e:
             continue
