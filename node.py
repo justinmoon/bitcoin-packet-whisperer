@@ -87,7 +87,7 @@ def handle_msg(msg, sock):
         payload_stream = io.BytesIO(msg.payload)
         handler(payload_stream, sock)
     else:
-        print(f"Unhandled command={command} payload-{msg.payload}")
+        print(f"Unhandled command={command} payload={msg.payload}")
 
 
 def main_loop(sock):
