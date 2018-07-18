@@ -72,7 +72,7 @@ def send_version_msg(sock):
 def send_getheaders(sock):
     # one recent hash ... base 16 encoded into like in core's test framework
     items = [int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)]
-    locator = BlockLocator()
+    locator = BlockLocator(items)
     getheaders = GetHeaders(locator)
     msg = Message(getheaders.command, getheaders.serialize())
     sock.send(msg.serialize())

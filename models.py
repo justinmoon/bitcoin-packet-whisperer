@@ -287,7 +287,7 @@ class BlockLocator:
         msg = int_to_little_endian(self.version, 4)
         msg += encode_varint(len(self.items))
         for hash_ in self.items:
-            msg += hash_
+            msg += int_to_little_endian(hash_, 32)
         return msg
     
 
