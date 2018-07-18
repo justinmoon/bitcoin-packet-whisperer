@@ -91,7 +91,7 @@ def consume_stream(s, n):
         raise RuntimeError("Can't consume stream")
 
 
-def right_pad_command(cmd):
+def encode_command(cmd):
     padding_needed = 12 - len(cmd)
     padding = b"\x00" * padding_needed
-    return cmd + b"\x00" 
+    return cmd + padding

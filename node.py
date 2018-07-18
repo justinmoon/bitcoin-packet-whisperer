@@ -71,6 +71,7 @@ def send_version_msg(sock):
 
 def send_getheaders(sock):
     # one recent hash ... base 16 encoded into like in core's test framework
+    # FIXME: don't hardcode this arbitrary block ...
     items = [int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)]
     locator = BlockLocator(items)
     getheaders = GetHeaders(locator)
@@ -90,22 +91,21 @@ def handle_verack(payload, sock):
     msg = Message(verack.command, verack.serialize())
     sock.send(msg.serialize())
 
+    # FIXME just here for now ...
+    send_getheaders(sock)
 
-SENT = False
 
 def handle_inv(payload, sock):
     inv_vec = InventoryVector.parse(payload)
     print(f'Received {inv_vec}')
-    # TODO: send getdata
     getdata = GetData(items=inv_vec.items)
     msg = Message(getdata.command, getdata.serialize())
     sock.send(msg.serialize())
     print("sent getdata")
-    
-    global SENT
-    if not SENT:
-        send_getheaders(sock)
-        SENT = True
+
+
+def handle_headers(payload, sock):
+    print('received "headers" ', payload)
 
 
 def handle_tx(payload, sock):
@@ -119,6 +119,7 @@ def handle_msg(msg, sock):
         b'verack': handle_verack,
         b'inv': handle_inv,
         b'tx': handle_tx,
+        b'headers': handle_headers,
     }
     command = msg.command.replace(b'\x00', b'')
     handler = handler_map.get(command)

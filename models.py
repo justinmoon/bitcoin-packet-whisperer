@@ -17,6 +17,7 @@ from utils import (
     read_bool,
     make_nonce,
     consume_stream,
+    encode_command,
 )
 
 NETWORK_MAGIC = b'\xf9\xbe\xb4\xd9'
@@ -98,7 +99,7 @@ class Message:
 
     def serialize(self):
         result = NETWORK_MAGIC
-        result += self.command
+        result += encode_command(self.command)
         result += int_to_little_endian(len(self.payload), 4)
         result += double_sha256(self.payload)[:4]
         result += self.payload
