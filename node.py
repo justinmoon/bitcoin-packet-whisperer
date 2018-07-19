@@ -23,6 +23,7 @@ from models import (
     Version,
     Verack,
     InventoryVector,
+    InventoryItem,
     GetData,
     BlockLocator,
     GetHeaders,
@@ -67,20 +68,23 @@ def connect():
     sock.connect(PEER)
     return sock
 
+
 def send_version_msg(sock):
     version_msg = construct_version_msg()
     sock.send(version_msg.serialize())
 
 
-def send_getheaders(sock):
+def send_getheaders(sock, items=None):
     # one recent hash ... base 16 encoded into like in core's test framework
     # FIXME: don't hardcode this arbitrary block ...
-    items = [int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)]
+    if items is None:
+        items = [int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)]
     locator = BlockLocator(items)
     getheaders = GetHeaders(locator)
     msg = Message(getheaders.command, getheaders.serialize())
     sock.send(msg.serialize())
     print('sent getheaders')
+
 
 def handle_version(payload, sock):
     version_msg = Version.parse(payload)
@@ -139,6 +143,7 @@ def main_loop(sock):
             msg = Message.parse(sock)
             handle_msg(msg, sock)
         except RuntimeError as e:
+            # print(e)
             continue
         print()
 

@@ -169,8 +169,6 @@ class InventoryItem:
     def __init__(self, type_, hash_):
         self.type = type_
         self.hash = hash_
-        if type_ != 1:
-            print ("\n\n\nGOT SOMETHING SPECIAL!!!!!\n\n\n")
 
     @classmethod
     def parse(cls, s):
@@ -334,13 +332,25 @@ class BlockHeader:
         prev_block = s.read(32)[::-1]  # little endian
         merkle_root = s.read(32)[::-1]  # little endian
         timestamp = little_endian_to_int(s.read(4))
-        bits = little_endian_to_int(s.read(4))
-        nonce = little_endian_to_int(s.read(4))
+        bits = s.read(4)
+        nonce = s.read(4)
         txn_count = read_varint(s)  # apparently this is always 0?
         return cls(version, prev_block, merkle_root, timestamp, bits, nonce, txn_count)
 
     def serialize(self):
-        pass
+        # version - 4 bytes, little endian
+        result = int_to_little_endian(self.version, 4)
+        # prev_block - 32 bytes, little endian
+        result += self.prev_block[::-1]
+        # merkle_root - 32 bytes, little endian
+        result += self.merkle_root[::-1]
+        # timestamp - 4 bytes, little endian
+        result += int_to_little_endian(self.timestamp, 4)
+        # bits - 4 bytes
+        result += self.bits
+        # nonce - 4 bytes
+        result += self.nonce
+        return result
 
     def hash(self):
         '''Returns the double-sha256 interpreted little endian of the block'''
@@ -350,6 +360,25 @@ class BlockHeader:
         sha = double_sha256(s)
         # reverse
         return sha[::-1]
+
+    def pow(self):
+        s = self.serialize()
+        sha = double_sha256(s)
+        return little_endian_to_int(sha)
+
+    def target(self):
+        '''Returns the proof-of-work target based on the bits'''
+        # last byte is exponent
+        exponent = self.bits[-1]
+        # the first three bytes are the coefficient in little endian
+        coefficient = little_endian_to_int(self.bits[:-1])
+        # the formula is:
+        # coefficient * 2**(8*(exponent-3))
+        return coefficient * 2**(8*(exponent-3))
+
+    def check_pow(self):
+        '''Returns whether this block satisfies proof of work'''
+        return self.pow() < self.target()
 
 
     def __repr__(self):
