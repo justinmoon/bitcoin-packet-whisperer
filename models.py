@@ -72,6 +72,7 @@ class Address:
     def __repr__(self):
         return f"<Address {self.ip}:{self.port}>"
 
+
 class Message:
 
     def __init__(self, command, payload):
@@ -95,6 +96,9 @@ class Message:
 
         if calculated_checksum != checksum:
             raise RuntimeError('checksum does not match')
+
+        if payload_length != len(payload):
+            raise RuntimeError("Tried to read {payload_length} bytes, only received {len(payload)} bytes")
 
         return cls(command, payload)
 
@@ -380,6 +384,12 @@ class BlockHeader:
         '''Returns whether this block satisfies proof of work'''
         return self.pow() < self.target()
 
+
+    def pretty(self):
+        hx = hex(self.pow())[2:]  # remove "0x" prefix
+        sigfigs = len(hx)
+        padding = "0" * (64 - sigfigs)
+        return padding + hx
 
     def __repr__(self):
         return f"<Header merkle_root={self.merkle_root}>"

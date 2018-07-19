@@ -82,11 +82,22 @@ def make_nonce(bytes_of_entropy):
     return random.randint(0, ceiling)
 
 
+def recvall(sock, n):
+    # Helper function to recv n bytes or return None if EOF is hit
+    data = b''
+    while len(data) < n:
+        packet = sock.recv(n - len(data))
+        if not packet:
+            return None
+        data += packet
+    return data
+
+
 def consume_stream(s, n):
     if hasattr(s, 'read'):
         return s.read(n)
     elif hasattr(s, 'recv'):
-        return s.recv(n)
+        return recvall(s, n)
     else:
         raise RuntimeError("Can't consume stream")
 

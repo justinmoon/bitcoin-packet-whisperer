@@ -75,8 +75,7 @@ def send_version_msg(sock):
 
 
 def send_getheaders(sock, items=None):
-    # one recent hash ... base 16 encoded into like in core's test framework
-    # FIXME: don't hardcode this arbitrary block ...
+    # one recent hash, interpreted as an int
     if items is None:
         items = [int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)]
     locator = BlockLocator(items)
@@ -143,7 +142,7 @@ def main_loop(sock):
             msg = Message.parse(sock)
             handle_msg(msg, sock)
         except RuntimeError as e:
-            # print(e)
+            print(e)
             continue
         print()
 
