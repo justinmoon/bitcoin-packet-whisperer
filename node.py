@@ -43,6 +43,13 @@ MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version 
 
 PEER = ("35.187.200.6", 8333)
 
+
+genesis = int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)
+
+# just stores the integer representation of the headers
+blockchain = [genesis]
+
+
 def construct_version_msg():
     version = MY_VERSION
     services = 1024 + 8 + 4 + 2 + 1  # turn 'em all on
@@ -74,11 +81,26 @@ def send_version_msg(sock):
     sock.send(version_msg.serialize())
 
 
-def send_getheaders(sock, items=None):
-    # one recent hash, interpreted as an int
-    if items is None:
-        items = [int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)]
-    locator = BlockLocator(items)
+def construct_block_locator():
+    step = 1
+    height = len(blockchain) - 1
+    hashes = []
+
+    while height >= 0:
+        if len(hashes) >= 10:
+            step *= 2
+        header = blockchain[height]
+        hashes.append(header)
+        height -= step
+
+    if not blockchain.index(genesis):
+        blockchain.append(genesis)
+
+    return BlockLocator(items=hashes)
+    
+
+def send_getheaders(sock):
+    locator = construct_block_locator()
     getheaders = GetHeaders(locator)
     msg = Message(getheaders.command, getheaders.serialize())
     sock.send(msg.serialize())
@@ -109,10 +131,21 @@ def handle_inv(payload, sock):
     sock.send(msg.serialize())
     print("sent getdata")
 
+def update_blockchain(block_headers):
+    for header in block_headers.headers:
+        # this is naive ...
+        # we add it to the blockchain if prev_block is our current tip
+        if header.prev_block == blockchain[-1]:
+            blockchain.append(header.pow())
+        else:
+            break
 
 def handle_headers(payload, sock):
     block_headers = Headers.parse(payload)
-    print('received "headers" ', block_headers)
+    print(f'{len(block_headers.headers)} new headers')
+    update_blockchain(block_headers)
+    send_getheaders(sock)
+    print(f'We now have {len(blockchain)} headers')
 
 
 def handle_tx(payload, sock):

@@ -86,6 +86,7 @@ class Message:
     def parse(cls, s):
         magic = consume_stream(s, 4)
         if magic != NETWORK_MAGIC:
+            raise ValueError('magic is not right')
             raise RuntimeError('magic is not right')
 
         command = parse_command(consume_stream(s, 12))
@@ -333,8 +334,10 @@ class BlockHeader:
     @classmethod
     def parse(cls, s):
         version = little_endian_to_int(s.read(4))
-        prev_block = s.read(32)[::-1]  # little endian
-        merkle_root = s.read(32)[::-1]  # little endian
+        #prev_block = s.read(32)[::-1]  # little endian
+        prev_block = little_endian_to_int(s.read(32))
+        #merkle_root = s.read(32)[::-1]  # little endian
+        merkle_root = little_endian_to_int(s.read(32))
         timestamp = little_endian_to_int(s.read(4))
         bits = s.read(4)
         nonce = s.read(4)
@@ -345,9 +348,9 @@ class BlockHeader:
         # version - 4 bytes, little endian
         result = int_to_little_endian(self.version, 4)
         # prev_block - 32 bytes, little endian
-        result += self.prev_block[::-1]
+        result += int_to_little_endian(self.prev_block, 32)
         # merkle_root - 32 bytes, little endian
-        result += self.merkle_root[::-1]
+        result += int_to_little_endian(self.merkle_root, 32)
         # timestamp - 4 bytes, little endian
         result += int_to_little_endian(self.timestamp, 4)
         # bits - 4 bytes
