@@ -73,6 +73,27 @@ class Address:
         return f"<Address {self.ip}:{self.port}>"
 
 
+def recover(sock):
+    # FIXME this don't work ...
+    correct_bytes = 0
+    while correct_bytes < 4:
+        next_byte = sock.recv(1)
+        # indexing somehow converts to integer ...
+        match = next_byte == NETWORK_MAGIC[correct_bytes]
+        if match:
+            correct_bytes += 1
+        else:
+            correct_bytes = 0
+        print(next_byte[0], NETWORK_MAGIC[correct_bytes], "match" if match else "")
+
+def another_recover(sock):
+    while True:
+        next_four_bytes = sock.recv(4)
+        print( next_four_bytes , NETWORK_MAGIC)
+        if next_four_bytes == NETWORK_MAGIC:
+            break
+
+
 class Message:
 
     def __init__(self, command, payload):
@@ -86,7 +107,6 @@ class Message:
     def parse(cls, s):
         magic = consume_stream(s, 4)
         if magic != NETWORK_MAGIC:
-            raise ValueError('magic is not right')
             raise RuntimeError('magic is not right')
 
         command = parse_command(consume_stream(s, 12))
