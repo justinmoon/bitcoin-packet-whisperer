@@ -15,6 +15,7 @@ from utils import (
     make_nonce,
     services_int_to_dict,
     encode_command,
+    int_to_little_endian,
 )
 
 from models import (
@@ -27,6 +28,8 @@ from models import (
     GetData,
     BlockLocator,
     GetHeaders,
+    GetBlocks,
+    Block,
     Headers,
     Tx,
     TxIn,
@@ -47,7 +50,7 @@ PEER = ("35.187.200.6", 8333)
 genesis = int("00000000000000000013424801fbec52484d7211c223beec97f02236a9b6ee03", 16)
 
 # just stores the integer representation of the headers
-blockchain = [genesis]
+blocks = [genesis]
 
 
 def construct_version_msg():
@@ -83,21 +86,39 @@ def send_version_msg(sock):
 
 def construct_block_locator():
     step = 1
-    height = len(blockchain) - 1
+    height = len(blocks) - 1
     hashes = []
 
     while height >= 0:
         if len(hashes) >= 10:
             step *= 2
-        header = blockchain[height]
+        header = blocks[height]
         hashes.append(header)
         height -= step
 
-    if not blockchain.index(genesis):
-        blockchain.append(genesis)
+    if not blocks.index(genesis):
+        blocks.append(genesis)
 
     return BlockLocator(items=hashes)
     
+
+def construct_block_locator_for_blocks():
+    step = 1
+    height = len(blocks) - 1
+    hashes = []
+
+    while height >= 0:
+        if len(hashes) >= 10:
+            step *= 2
+        header = blocks[height]
+        hashes.append(header)
+        height -= step
+
+    if not blocks.index(genesis):
+        blocks.append(genesis)
+
+    return BlockLocator(items=hashes)
+
 
 def send_getheaders(sock):
     locator = construct_block_locator()
@@ -105,6 +126,14 @@ def send_getheaders(sock):
     msg = Message(getheaders.command, getheaders.serialize())
     sock.send(msg.serialize())
     print('sent getheaders')
+
+
+def send_getblocks(sock):
+    locator = construct_block_locator_for_blocks()
+    getblocks = GetBlocks(locator)
+    msg = Message(getblocks.command, getblocks.serialize())
+    sock.send(msg.serialize())
+    print('sent getblocks')
 
 
 def handle_version(payload, sock):
@@ -125,27 +154,40 @@ def handle_verack(payload, sock):
 
 def handle_inv(payload, sock):
     inv_vec = InventoryVector.parse(payload)
-    print(f'Received {inv_vec}')
     getdata = GetData(items=inv_vec.items)
     msg = Message(getdata.command, getdata.serialize())
     sock.send(msg.serialize())
     print("sent getdata")
 
-def update_blockchain(block_headers):
+def update_blocks(block_headers):
     for header in block_headers.headers:
         # this is naive ...
-        # we add it to the blockchain if prev_block is our current tip
-        if header.prev_block == blockchain[-1]:
-            blockchain.append(header.pow())
+        # we add it to the blocks if prev_block is our current tip
+        if header.prev_block == blocks[-1]:
+            blocks.append(header.pow())
         else:
             break
 
 def handle_headers(payload, sock):
     block_headers = Headers.parse(payload)
     print(f'{len(block_headers.headers)} new headers')
-    update_blockchain(block_headers)
-    send_getheaders(sock)
-    print(f'We now have {len(blockchain)} headers')
+    update_blocks(block_headers)
+
+    # after 500 headers, get the blocks
+    if len(blocks) < 500:
+        send_getheaders(sock)
+    else:
+        items = [InventoryItem(2, int_to_little_endian(hash_, 32)) for hash_ in blocks[:10]]
+        getdata = GetData(items=items)
+        msg = Message(getdata.command, getdata.serialize())
+        sock.send(msg.serialize())
+
+    print(f'We now have {len(blocks)} headers')
+
+
+def handle_block(payload, sock):
+    block = Block.parse(payload)
+    print(block)
 
 
 def handle_tx(payload, sock):
@@ -159,6 +201,7 @@ def handle_msg(msg, sock):
         b'verack': handle_verack,
         b'inv': handle_inv,
         b'tx': handle_tx,
+        b'block': handle_block,
         b'headers': handle_headers,
     }
     handler = handler_map.get(msg.command)
@@ -166,7 +209,7 @@ def handle_msg(msg, sock):
         payload_stream = io.BytesIO(msg.payload)
         handler(payload_stream, sock)
     else:
-        print(f"Unhandled command={msg.command} payload={msg.payload}")
+        print(f"Unhandled command={msg.command}")
 
 
 def main_loop(sock):

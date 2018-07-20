@@ -107,7 +107,7 @@ class Message:
     def parse(cls, s):
         magic = consume_stream(s, 4)
         if magic != NETWORK_MAGIC:
-            raise RuntimeError('magic is not right')
+            raise ValueError('magic is not right')
 
         command = parse_command(consume_stream(s, 12))
         payload_length = little_endian_to_int(consume_stream(s, 4))
@@ -340,6 +340,7 @@ class Headers:
         return f"<Headers {self.headers}>"
 
 
+
 class BlockHeader:
 
     def __init__(self, version, prev_block, merkle_root, timestamp, bits, nonce, txn_count):
@@ -416,6 +417,33 @@ class BlockHeader:
 
     def __repr__(self):
         return f"<Header merkle_root={self.merkle_root}>"
+
+
+class Block(BlockHeader):
+
+    def __init__(self, version, prev_block, merkle_root, timestamp, bits, nonce, txn_count, txns):
+        super().__init__(version, prev_block, merkle_root, timestamp, bits, nonce, txn_count)
+        self.txns = txns
+
+    @classmethod
+    def parse(cls, s):
+        version = little_endian_to_int(s.read(4))
+        #prev_block = s.read(32)[::-1]  # little endian
+        prev_block = little_endian_to_int(s.read(32))
+        #merkle_root = s.read(32)[::-1]  # little endian
+        merkle_root = little_endian_to_int(s.read(32))
+        timestamp = little_endian_to_int(s.read(4))
+        bits = s.read(4)
+        nonce = s.read(4)
+        txn_count = read_varint(s)  # apparently this is always 0?
+        txns = [Tx.parse(s) for _ in range(txn_count)]
+        return cls(version, prev_block, merkle_root, timestamp, bits, nonce, txn_count, txns)
+
+    def serialize(self):
+        pass
+
+    def __repr__(self):
+        return f"<Block merkle_root={self.merkle_root} | {len(self.txns)} txns>"
 
 
 class Tx:
