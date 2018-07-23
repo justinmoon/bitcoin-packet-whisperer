@@ -8,6 +8,7 @@ import math
 
 from utils import (
     little_endian_to_int, 
+    big_endian_to_int, 
     int_to_little_endian, 
     read_varint, 
     encode_varint,
@@ -55,8 +56,10 @@ class Address:
         else:
             time = little_endian_to_int(s.read(4))
         services = little_endian_to_int(s.read(8))
-        ip = little_endian_to_int(s.read(16))
-        port = little_endian_to_int(s.read(2))
+        # FIXME: just reading ipv4 ...
+        _ = s.read(12)
+        ip = s.read(4)
+        port = big_endian_to_int(s.read(2))
         return cls(services, ip, port, time)
 
     def serialize(self, version_msg=False):

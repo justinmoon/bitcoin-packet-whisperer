@@ -81,6 +81,7 @@ def connect():
 
 def send_version_msg(sock):
     version_msg = construct_version_msg()
+    print('serialized version ', version_msg.serialize())
     sock.send(version_msg.serialize())
 
 

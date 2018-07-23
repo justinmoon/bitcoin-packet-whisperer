@@ -4,6 +4,8 @@ import hashlib, struct, hashlib, random
 def little_endian_to_int(b):
     return int.from_bytes(b, 'little')
 
+def big_endian_to_int(b):
+    return int.from_bytes(b, 'big')
 
 def int_to_little_endian(n, length):
     return n.to_bytes(length, 'little')
@@ -25,6 +27,24 @@ def read_varint(s):
     elif i == 0xff:
         # 0xff means the next eight bytes are the number
         return little_endian_to_int(s.read(8))
+    else:
+        # anything else is just the integer
+        return i
+
+
+async def read_varint_async(s):
+    # https://en.bitcoin.it/wiki/Protocol_documentation#Variable_length_integer
+    i = await s.read(1)
+    i = i[0]
+    if i == 0xfd:
+        # 0xfd means the next two bytes are the number
+        return little_endian_to_int(await s.read(2))
+    elif i == 0xfe:
+        # 0xfe means the next four bytes are the number
+        return little_endian_to_int(await s.read(4))
+    elif i == 0xff:
+        # 0xff means the next eight bytes are the number
+        return little_endian_to_int(await s.read(8))
     else:
         # anything else is just the integer
         return i

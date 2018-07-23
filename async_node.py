@@ -1,6 +1,6 @@
 import asyncio
 
-from async_models import Message, NETWORK_MAGIC
+from async_models import Message, NETWORK_MAGIC, Addr, GetAddr
 from utils import double_sha256, int_to_little_endian, little_endian_to_int
 
 
@@ -28,16 +28,23 @@ async def read_message(reader):
     return Message(command, payload)
 
 
-async def handle_message(env, writer, host):
-    if env.command.startswith(b"version"):
+async def handle_message(msg, reader, writer, host):
+    if msg.command.startswith(b"version"):
         writer.write(VERACK)
         return f"({host}) sent verack"
-    if env.command.startswith(b"verack"):
+    if msg.command.startswith(b"verack"):
         return f"({host}) received verack"
-    if env.command.startswith(b"addr"):
-        return env.payload
+    if msg.command.startswith(b"addr"):
+        print("addr payload: ", msg.payload)
+        addr = await Addr.parse(reader)
+        print(addr.addresses)
+        for address in addr.addresses:
+            # FIXME: check whether we're already connected
+            import pdb; pdb.set_trace()
+            asyncio.ensure_future(connect(address.ip, address.port))
+        return msg.payload
     else:
-        command = env.command.replace(b"\x00", b"")
+        command = msg.command.replace(b"\x00", b"")
         return f"received {command} from {host}"
 
 
@@ -45,23 +52,29 @@ async def connect(host, port, bootstrap=False):
     reader, writer = await asyncio.open_connection(host, port)
     print(f"({host}) connected")
     writer.write(VERSION)
-    env = await read_message(reader)
-    print(f"({host}) {env}")
-    response = await handle_message(env, writer, host)
-    print(f"({host}) {response}")
+    msg = await read_message(reader)
+    print(f"({host}) {msg}")
+    res = await handle_message(msg, reader, writer, host)
+    print(f"({host}) {res}")
 
     if bootstrap:
         # create another task and add it to the loop
         asyncio.ensure_future(connect(last_host, port))
+
+    # ask for their list of peers ... doesn't seem to do anything ...
+    getaddr = GetAddr()
+    getaddr_msg = Message(command=getaddr.command, payload=getaddr.serialize())
+    writer.write(getaddr.serialize())
+    print(f"({host}) sent getaddr")
 
     await loop(host, port, reader, writer)
 
 
 async def loop(host, port, reader, writer):
     # recursively read the next message from this peer
-    envelope = await read_message(reader)
-    msg = await handle_message(envelope, writer, host)
-    print(msg)
+    msg = await read_message(reader)
+    res = await handle_message(msg, reader, writer, host)
+    print(res)
     await loop(host, port, reader, writer)
 
 
